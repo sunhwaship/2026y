@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연차 관리 시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a22;
+    --surface2: #22222e;
+    --border: #2e2e3e;
+    --accent: #7c6af7;
+    --accent2: #f76a8a;
+    --accent3: #6af7b8;
+    --accent4: #f7c76a;
+    --text: #e8e8f0;
+    --text2: #9090a8;
+    --text3: #5a5a72;
+    --approved: #6af7b8;
+    --pending: #f7c76a;
+    --rejected: #f76a8a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 20px 40px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-logo { width: 36px; height: 36px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .header-date { color: var(--text2); font-size: 13px; }
+
+  .admin-badge { display: flex; align-items: center; gap: 6px; background: #7c6af720; border: 1px solid #7c6af740; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--accent); }
+  .admin-login-btn { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: 'Noto Sans KR', sans-serif; transition: all 0.15s; }
+  .admin-login-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .admin-logout-btn { background: none; border: none; color: var(--text3); font-size: 11px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
+  .admin-logout-btn:hover { color: var(--accent2); background: #f76a8a10; }
+
+  /* NAV */
+  .nav-tabs { display: flex; gap: 4px; padding: 20px 40px 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab-btn { padding: 10px 22px; border: none; background: none; color: var(--text2); font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn.admin-tab { color: var(--accent); }
+
+  .section { display: none; padding: 32px 40px; }
+  .section.active { display: block; }
+
+  /* LOGIN MODAL */
+  .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 300; opacity: 0; pointer-events: none; transition: opacity 0.25s; backdrop-filter: blur(4px); }
+  .login-overlay.show { opacity: 1; pointer-events: all; }
+  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 36px; width: 360px; transform: scale(0.95) translateY(10px); transition: transform 0.25s; text-align: center; }
+  .login-overlay.show .login-box { transform: scale(1) translateY(0); }
+  .login-icon { width: 60px; height: 60px; background: linear-gradient(135deg, #7c6af7, #a06af7); border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 20px; box-shadow: 0 8px 24px #7c6af730; }
+  .login-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .login-box p { color: var(--text2); font-size: 13px; line-height: 1.6; margin-bottom: 24px; }
+  .login-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 12px 16px; font-family: 'Noto Sans KR', sans-serif; font-size: 16px; outline: none; text-align: center; letter-spacing: 4px; transition: border-color 0.2s; margin-bottom: 10px; }
+  .login-input:focus { border-color: var(--accent); }
+  .login-input.error { border-color: var(--rejected); animation: shake 0.3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+  .login-error { color: var(--rejected); font-size: 12px; margin-bottom: 10px; min-height: 18px; }
+  .login-btn { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 10px; font-family: 'Noto Sans KR', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s; margin-bottom: 10px; }
+  .login-btn:hover { background: #6a58e0; }
+  .login-cancel-btn { background: none; border: none; color: var(--text3); font-size: 13px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; padding: 6px; }
+  .login-cancel-btn:hover { color: var(--text2); }
+
+  /* SECTION HEADERS */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .section-title { font-size: 22px; font-weight: 700; }
+  .section-desc { color: var(--text2); font-size: 13px; margin-top: 4px; }
+
+  /* APPLY LAYOUT */
+  .apply-layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; }
+
+  /* CALENDAR */
+  .calendar-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+  .cal-nav { display: flex; gap: 8px; }
+  .cal-nav button { width: 32px; height: 32px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+  .cal-nav button:hover { border-color: var(--accent); color: var(--accent); }
+  .cal-month { font-size: 18px; font-weight: 700; }
+  .cal-year { color: var(--text2); font-size: 14px; margin-left: 8px; }
+  .cal-grid { padding: 16px; }
+  .cal-days-header { display: grid; grid-template-columns: repeat(7,1fr); text-align: center; margin-bottom: 8px; }
+  .cal-days-header span { font-size: 11px; font-weight: 500; color: var(--text3); padding: 4px; letter-spacing: 1px; }
+  .cal-cells { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.15s; position: relative; user-select: none; }
+  .cal-cell:hover:not(.empty) { background: var(--surface2); }
+  .cal-cell.today { font-weight: 700; color: var(--accent); }
+  .cal-cell.today::after { content:''; position:absolute; bottom:4px; width:4px; height:4px; background:var(--accent); border-radius:50%; }
+  .cal-cell.selected { background: var(--accent); color: white; font-weight: 600; }
+  .cal-cell.range { background: #7c6af720; color: var(--accent); }
+  .cal-cell.empty { color: var(--text3); cursor: default; }
+  .cal-cell.sunday { color: #f76a8a88; }
+  .cal-cell.saturday { color: #6a9af788; }
+  .cal-cell.selected.sunday, .cal-cell.selected.saturday { color: white; }
+  .leave-dots { display: flex; gap: 2px; margin-top: 1px; }
+  .leave-dot { width: 3px; height: 3px; border-radius: 50%; }
+
+  /* APPLY FORM */
+  .apply-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .form-title { font-size: 16px; font-weight: 700; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; color: var(--text2); font-weight: 500; letter-spacing: 0.5px; }
+  .form-select, .form-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 12px; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .form-select:focus, .form-input:focus { border-color: var(--accent); }
+  .form-select option { background: var(--surface2); }
+  .date-range-display { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text2); min-height: 40px; }
+  .date-range-display.filled { color: var(--text); font-weight: 500; }
+  .leave-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .leave-type-btn { padding: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text2); border-radius: 8px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; transition: all 0.15s; }
+  .leave-type-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .leave-type-btn.active { border-color: var(--accent); background: #7c6af715; color: var(--accent); }
+  .submit-btn { padding: 12px; background: var(--accent); color: white; border: none; border-radius: 10px; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+  .submit-btn:hover { background: #6a58e0; transform: translateY(-1px); }
+  .remaining-info { background: var(--surface2); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; font-size: 13px; }
+  .remaining-info span { color: var(--text2); }
+  .remaining-info strong { color: var(--accent3); }
+  .cal-legend { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* STATS GRID */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 24px; }
+  .stat-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .employee-name { font-size: 16px; font-weight: 700; }
+  .employee-avatar { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: white; }
+
+  /* 2개의 진행 바 */
+  .stat-bars { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .stat-row { display: flex; flex-direction: column; gap: 4px; }
+  .stat-row-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); }
+  .stat-bar-bg { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .stat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+  /* stat numbers: 총 연차 / 재량 휴가 / 사용 연차 / 잔여 연차 */
+  .stat-numbers { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .stat-num { text-align: center; }
+  .stat-num-val { font-size: 18px; font-weight: 700; font-family: 'DM Mono', monospace; }
+  .stat-num-label { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+  /* TABLE */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .table-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .table-title { font-size: 15px; font-weight: 700; }
+  .filter-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 10px; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; outline: none; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600; color: var(--text3); letter-spacing: 0.8px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-approved { background: #6af7b820; color: var(--approved); }
+  .badge-pending { background: #f7c76a20; color: var(--pending); }
+  .badge-rejected { background: #f76a8a20; color: var(--rejected); }
+
+  /* APPROVALS */
+  .approval-grid { display: flex; flex-direction: column; gap: 12px; }
+  .approval-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; }
+  .approval-card.approved { border-left: 3px solid var(--approved); }
+  .approval-card.rejected { border-left: 3px solid var(--rejected); }
+  .approval-card.pending { border-left: 3px solid var(--pending); }
+  .approval-avatar { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: white; flex-shrink: 0; }
+  .approval-info { flex: 1; }
+  .approval-name { font-weight: 700; font-size: 15px; }
+  .approval-detail { color: var(--text2); font-size: 13px; margin-top: 3px; }
+  .approval-dates { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text3); margin-top: 4px; }
+  .approval-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn-approve { padding: 8px 16px; border-radius: 8px; border: 1px solid #6af7b840; background: #6af7b820; color: var(--approved); cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; font-weight: 700; transition: all 0.15s; }
+  .btn-approve:hover { background: #6af7b835; }
+  .btn-reject { padding: 8px 16px; border-radius: 8px; border: 1px solid #f76a8a40; background: #f76a8a20; color: var(--rejected); cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; font-weight: 700; transition: all 0.15s; }
+  .btn-reject:hover { background: #f76a8a35; }
+  .btn-locked { padding: 8px 16px; border-radius: 8px; background: var(--surface2); color: var(--text3); border: 1px solid var(--border); font-size: 12px; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 30px; right: 30px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; font-size: 14px; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: translateY(100px); opacity: 0; transition: all 0.3s ease; z-index: 1000; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--approved); }
+  .toast.error { border-color: var(--rejected); }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 400px; transform: scale(0.95); transition: transform 0.2s; }
+  .modal-overlay.show .modal { transform: scale(1); }
+  .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .modal p { color: var(--text2); font-size: 14px; line-height: 1.6; white-space: pre-line; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+  .modal-btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 600; }
+  .modal-btn-cancel { background: var(--surface2); color: var(--text2); }
+  .modal-btn-confirm { background: var(--accent); color: white; }
+  .modal-btn-reject-confirm { background: var(--rejected); color: white; }
+
+  @media (max-width: 900px) {
+    .apply-layout { grid-template-columns: 1fr; }
+    .section { padding: 20px; }
+    .nav-tabs { padding: 16px 20px 0; overflow-x: auto; }
+    .header { padding: 16px 20px; }
+    .stat-numbers { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">📅</div>
+  <h1>연차 관리 시스템</h1>
+  <div class="header-right">
+    <span class="header-date" id="currentDateDisplay"></span>
+    <div id="adminStatus">
+      <button class="admin-login-btn" onclick="openLoginModal()">🔐 관리자 로그인</button>
+    </div>
+  </div>
+</div>
+
+<div class="nav-tabs" id="navTabs">
+  <button class="tab-btn active" onclick="switchTab(0)">📆 연차 신청</button>
+  <button class="tab-btn" onclick="switchTab(1)">📊 연차 현황</button>
+</div>
+
+<!-- SECTION 1: 연차 신청 -->
+<div class="section active" id="section-0">
+  <div class="section-header">
+    <div>
+      <div class="section-title">연차 신청</div>
+      <div class="section-desc">캘린더에서 날짜를 선택하고 연차를 신청하세요</div>
+    </div>
+  </div>
+  <div class="apply-layout">
+    <div class="calendar-wrap">
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button onclick="changeMonth(-1)">‹</button>
+          <button onclick="changeMonth(1)">›</button>
+        </div>
+        <div>
+          <span class="cal-month" id="calMonth"></span>
+          <span class="cal-year" id="calYear"></span>
+        </div>
+        <button onclick="goToToday()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;">오늘</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-days-header">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+        <div class="cal-cells" id="calCells"></div>
+      </div>
+      <div class="cal-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>선택</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--pending)"></div>대기중</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--approved)"></div>승인</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--rejected)"></div>반려</div>
+      </div>
+    </div>
+    <div class="apply-form">
+      <div class="form-title">연차 신청서</div>
+      <div class="form-group">
+        <div class="form-label">직원 선택</div>
+        <select class="form-select" id="applyEmployee" onchange="updateRemainingInfo()">
+          <option value="">직원을 선택하세요</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">신청 기간 (캘린더에서 클릭)</div>
+        <div class="date-range-display" id="dateRangeDisplay">날짜를 선택해주세요</div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">연차 유형</div>
+        <div class="leave-type-grid">
+          <button class="leave-type-btn active" onclick="selectLeaveType(this,'연차')">🌴 연차</button>
+          <button class="leave-type-btn" onclick="selectLeaveType(this,'반차(오전)')">🌅 반차(오전)</button>
+          <button class="leave-type-btn" onclick="selectLeaveType(this,'반차(오후)')">🌇 반차(오후)</button>
+          <button class="leave-type-btn" onclick="selectLeaveType(this,'재량휴가')">🎉 재량휴가</button>
+          <button class="leave-type-btn" onclick="selectLeaveType(this,'공가')">🏛️ 공가</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">사유</div>
+        <input class="form-input" id="applyReason" placeholder="신청 사유를 입력하세요" />
+      </div>
+      <div class="remaining-info" id="remainingInfo" style="display:none">
+        <span id="remainingLabel">잔여 연차</span>
+        <strong id="remainingDays">0일</strong>
+      </div>
+      <button class="submit-btn" onclick="submitLeave()">연차 신청하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: 연차 현황 -->
+<div class="section" id="section-1">
+  <div class="section-header">
+    <div>
+      <div class="section-title">연차 현황</div>
+      <div class="section-desc">직원별 연차 및 재량휴가 사용 현황을 확인하세요</div>
+    </div>
+  </div>
+  <div class="stats-grid" id="statsGrid"></div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="table-title">연차 신청 내역</div>
+      <select class="filter-select" id="historyFilter" onchange="renderHistory()">
+        <option value="">전체 직원</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr><th>직원</th><th>유형</th><th>기간</th><th>일수</th><th>사유</th><th>상태</th><th>신청일</th></tr>
+      </thead>
+      <tbody id="historyTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SECTION 3: 승인 관리 (관리자 전용) -->
+<div class="section" id="section-2">
+  <div class="section-header">
+    <div>
+      <div class="section-title">승인 관리 <span style="font-size:14px;color:var(--accent);font-weight:500;">· 관리자 전용</span></div>
+      <div class="section-desc">대기 중인 연차를 승인하거나 반려하세요. 처리 후에는 수정이 불가합니다.</div>
+    </div>
+  </div>
+  <div class="approval-grid" id="approvalGrid"></div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-icon">🔐</div>
+    <h2>관리자 로그인</h2>
+    <p>승인 관리 기능은 관리자만<br>사용할 수 있습니다.</p>
+    <input type="password" class="login-input" id="loginInput"
+      placeholder="비밀번호 입력"
+      onkeydown="if(event.key==='Enter') doLogin()"
+      oninput="document.getElementById('loginError').textContent=''"
+    />
+    <div class="login-error" id="loginError"></div>
+    <button class="login-btn" onclick="doLogin()">로그인</button>
+    <button class="login-cancel-btn" onclick="closeLoginModal()">취소</button>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalDesc"></p>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal()">취소</button>
+      <button class="modal-btn" id="modalConfirmBtn" onclick="modalConfirm()"></button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toastIcon"></span>
+  <span id="toastMsg"></span>
+</div>
+
+<script>
+const ADMIN_PW = '080525';
+const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+// 직원 데이터: total = 연차, discretionary = 재량휴가 (전원 5일 고정)
+const EMPLOYEES = [
+  { name: '서훈',   total: 15, discretionary: 5, color: '#7c6af7' },
+  { name: '박미화', total: 25, discretionary: 5, color: '#f76a8a' },
+  { name: '김호민', total: 24, discretionary: 5, color: '#6af7b8' },
+  { name: '이춘재', total: 18, discretionary: 5, color: '#f7c76a' },
+  { name: '백인성', total: 19, discretionary: 5, color: '#6ab4f7' },
+  { name: '권민정', total: 20, discretionary: 5, color: '#f7a06a' },
+  { name: '김소정', total: 19, discretionary: 5, color: '#a06af7' },
+];
+const EMP_MAP = {};
+EMPLOYEES.forEach(e => { EMP_MAP[e.name] = e; });
+
+let leaves = [];
+let isAdmin = false;
+let calDate = new Date();
+let selectedStart = null, selectedEnd = null, isSelectingEnd = false;
+let selectedLeaveType = '연차';
+let currentTab = 0;
+let pendingAction = null;
+
+// 재량휴가인지 여부
+function isDiscretionary(type) { return type === '재량휴가'; }
+
+function init() {
+  document.getElementById('currentDateDisplay').textContent =
+    new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  EMPLOYEES.forEach(e => {
+    document.getElementById('applyEmployee').innerHTML += `<option value="${e.name}">${e.name}</option>`;
+    document.getElementById('historyFilter').innerHTML += `<option value="${e.name}">${e.name}</option>`;
+  });
+  renderCalendar(); renderStats(); renderHistory();
+}
+
+// ====== ADMIN ======
+function openLoginModal() {
+  document.getElementById('loginInput').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('loginInput').focus(), 200);
+}
+function closeLoginModal() { document.getElementById('loginOverlay').classList.remove('show'); }
+
+function doLogin() {
+  const pw = document.getElementById('loginInput').value;
+  if (pw === ADMIN_PW) {
+    isAdmin = true;
+    closeLoginModal();
+    updateAdminUI();
+    showToast('관리자로 로그인되었습니다.', 'success');
+    switchTab(2);
+  } else {
+    const input = document.getElementById('loginInput');
+    document.getElementById('loginError').textContent = '비밀번호가 올바르지 않습니다.';
+    input.classList.add('error');
+    input.value = '';
+    setTimeout(() => input.classList.remove('error'), 400);
+  }
+}
+
+function doLogout() {
+  isAdmin = false;
+  updateAdminUI();
+  switchTab(0);
+  showToast('로그아웃되었습니다.', 'success');
+}
+
+function updateAdminUI() {
+  const statusEl = document.getElementById('adminStatus');
+  const navTabs = document.getElementById('navTabs');
+  if (isAdmin) {
+    statusEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="admin-badge">🛡️ 관리자 모드</div>
+        <button class="admin-logout-btn" onclick="doLogout()">로그아웃</button>
+      </div>`;
+    if (!document.getElementById('adminTab')) {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn admin-tab';
+      btn.id = 'adminTab';
+      btn.innerHTML = '✅ 승인 관리';
+      btn.onclick = () => switchTab(2);
+      navTabs.appendChild(btn);
+    }
+  } else {
+    statusEl.innerHTML = `<button class="admin-login-btn" onclick="openLoginModal()">🔐 관리자 로그인</button>`;
+    const adminTab = document.getElementById('adminTab');
+    if (adminTab) adminTab.remove();
+  }
+}
+
+// ====== TAB ======
+function switchTab(idx) {
+  if (idx === 2 && !isAdmin) { openLoginModal(); return; }
+  currentTab = idx;
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', i === idx));
+  document.querySelectorAll('.section').forEach((sec, i) => sec.classList.toggle('active', i === idx));
+  if (idx === 1) { renderStats(); renderHistory(); }
+  if (idx === 2) { renderApprovals(); }
+}
+
+// ====== CALENDAR ======
+function changeMonth(dir) {
+  calDate.setMonth(calDate.getMonth() + dir);
+  selectedStart = null; selectedEnd = null; isSelectingEnd = false;
+  updateDateDisplay(); renderCalendar();
+}
+function goToToday() { calDate = new Date(); renderCalendar(); }
+
+function renderCalendar() {
+  const year = calDate.getFullYear(), month = calDate.getMonth();
+  document.getElementById('calMonth').textContent = MONTHS[month];
+  document.getElementById('calYear').textContent = year + '년';
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const today = new Date();
+  const container = document.getElementById('calCells');
+  container.innerHTML = '';
+  for (let i = 0; i < firstDay; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell empty';
+    container.appendChild(cell);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    const dow = date.getDay();
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    if (dow === 0) cell.classList.add('sunday');
+    if (dow === 6) cell.classList.add('saturday');
+    if (today.getFullYear()===year && today.getMonth()===month && today.getDate()===d) cell.classList.add('today');
+    const sel = isInSelection(date);
+    if (sel === 'selected') cell.classList.add('selected');
+    else if (sel === 'range') cell.classList.add('range');
+    const numSpan = document.createElement('span');
+    numSpan.textContent = d;
+    cell.appendChild(numSpan);
+    const dayLeaves = leaves.filter(l => { const s = new Date(l.startDate), e = new Date(l.endDate); return date >= s && date <= e; });
+    if (dayLeaves.length > 0) {
+      const dots = document.createElement('div');
+      dots.className = 'leave-dots';
+      dayLeaves.slice(0,3).forEach(l => {
+        const dot = document.createElement('div');
+        dot.className = 'leave-dot';
+        dot.style.background = l.status==='approved'?'var(--approved)':l.status==='rejected'?'var(--rejected)':'var(--pending)';
+        dots.appendChild(dot);
+      });
+      cell.appendChild(dots);
+    }
+    cell.onclick = () => handleDateClick(date);
+    container.appendChild(cell);
+  }
+}
+
+function isInSelection(date) {
+  if (!selectedStart) return null;
+  const s = selectedStart, e = selectedEnd || selectedStart;
+  const from = s < e ? s : e, to = s < e ? e : s;
+  if (date.toDateString()===from.toDateString() || date.toDateString()===to.toDateString()) return 'selected';
+  if (date > from && date < to) return 'range';
+  return null;
+}
+function handleDateClick(date) {
+  // 항상 하루씩만 선택 (범위 선택 없음)
+  selectedStart = date;
+  selectedEnd = date;
+  isSelectingEnd = false;
+  updateDateDisplay(); renderCalendar();
+}
+
+function updateDateDisplay() {
+  const el = document.getElementById('dateRangeDisplay');
+  if (!selectedStart) { el.textContent = '날짜를 선택해주세요'; el.classList.remove('filled'); return; }
+  el.classList.add('filled');
+  const dayCount = selectedLeaveType.includes('반차') ? 0.5 : 1;
+  el.textContent = formatDate(selectedStart) + ' (' + dayCount + '일)';
+}
+function calcWorkDays(start, end) {
+  let count = 0, d = new Date(start);
+  while (d <= end) { if (d.getDay()!==0 && d.getDay()!==6) count++; d.setDate(d.getDate()+1); }
+  return count || 1;
+}
+function formatDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function selectLeaveType(btn, type) {
+  document.querySelectorAll('.leave-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedLeaveType = type;
+  // 잔여 정보 라벨 업데이트
+  const empName = document.getElementById('applyEmployee').value;
+  if (empName) updateRemainingInfo();
+  updateDateDisplay();
+}
+
+function updateRemainingInfo() {
+  const name = document.getElementById('applyEmployee').value;
+  const el = document.getElementById('remainingInfo');
+  if (!name) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const emp = EMP_MAP[name];
+  if (isDiscretionary(selectedLeaveType)) {
+    const usedD = getUsedDiscretionary(name);
+    document.getElementById('remainingLabel').textContent = '잔여 재량휴가';
+    document.getElementById('remainingDays').textContent = (emp.discretionary - usedD) + '일';
+  } else {
+    const usedL = getUsedLeave(name);
+    document.getElementById('remainingLabel').textContent = '잔여 연차';
+    document.getElementById('remainingDays').textContent = (emp.total - usedL) + '일';
+  }
+}
+
+// 연차 사용일 (재량휴가 제외, 반려 제외)
+function getUsedLeave(name) {
+  return leaves.filter(l => l.employee===name && l.status!=='rejected' && !isDiscretionary(l.type))
+    .reduce((sum,l) => sum+l.days, 0);
+}
+// 재량휴가 사용일 (반려 제외)
+function getUsedDiscretionary(name) {
+  return leaves.filter(l => l.employee===name && l.status!=='rejected' && isDiscretionary(l.type))
+    .reduce((sum,l) => sum+l.days, 0);
+}
+
+function submitLeave() {
+  const name = document.getElementById('applyEmployee').value;
+  const reason = document.getElementById('applyReason').value;
+  if (!name) { showToast('직원을 선택해주세요.', 'error'); return; }
+  if (!selectedStart) { showToast('날짜를 선택해주세요.', 'error'); return; }
+  const end = selectedEnd || selectedStart;
+  const days = selectedLeaveType.includes('반차') ? 0.5 : 1;
+  const emp = EMP_MAP[name];
+
+  if (isDiscretionary(selectedLeaveType)) {
+    const remaining = emp.discretionary - getUsedDiscretionary(name);
+    if (days > remaining) { showToast(`재량휴가 잔여일이 부족합니다. (잔여: ${remaining}일)`, 'error'); return; }
+  } else {
+    const remaining = emp.total - getUsedLeave(name);
+    if (days > remaining) { showToast(`잔여 연차가 부족합니다. (잔여: ${remaining}일)`, 'error'); return; }
+  }
+
+  leaves.unshift({
+    id: Date.now(), employee: name, type: selectedLeaveType,
+    startDate: formatDate(selectedStart), endDate: formatDate(end),
+    days, reason: reason||'미기재', status: 'pending', appliedAt: formatDate(new Date())
+  });
+  showToast(`${name}님의 ${selectedLeaveType} 신청이 완료되었습니다.`, 'success');
+  selectedStart = null; selectedEnd = null; isSelectingEnd = false;
+  document.getElementById('applyReason').value = '';
+  updateDateDisplay(); renderCalendar(); updateRemainingInfo();
+}
+
+// ====== STATS ======
+function renderStats() {
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = '';
+  EMPLOYEES.forEach(emp => {
+    const usedLeave = getUsedLeave(emp.name);
+    const usedDisc = getUsedDiscretionary(emp.name);
+    const remainLeave = emp.total - usedLeave;
+    const remainDisc = emp.discretionary - usedDisc;
+    const leavePct = Math.min((usedLeave / emp.total) * 100, 100);
+    const discPct = Math.min((usedDisc / emp.discretionary) * 100, 100);
+    grid.innerHTML += `
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div><div class="employee-name">${emp.name}</div></div>
+          <div class="employee-avatar" style="background:${emp.color}">${emp.name[0]}</div>
+        </div>
+        <div class="stat-bars">
+          <div class="stat-row">
+            <div class="stat-row-header"><span>연차 사용률</span><span>${usedLeave}/${emp.total}일</span></div>
+            <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${leavePct}%;background:${emp.color}"></div></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-row-header"><span>재량휴가 사용률</span><span>${usedDisc}/${emp.discretionary}일</span></div>
+            <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${discPct}%;background:var(--accent4)"></div></div>
+          </div>
+        </div>
+        <div class="stat-numbers">
+          <div class="stat-num">
+            <div class="stat-num-val" style="color:${emp.color}">${emp.total}</div>
+            <div class="stat-num-label">총 연차</div>
+          </div>
+          <div class="stat-num">
+            <div class="stat-num-val" style="color:var(--accent4)">${emp.discretionary}</div>
+            <div class="stat-num-label">재량휴가</div>
+          </div>
+          <div class="stat-num">
+            <div class="stat-num-val" style="color:var(--accent2)">${usedLeave}</div>
+            <div class="stat-num-label">사용 연차</div>
+          </div>
+          <div class="stat-num">
+            <div class="stat-num-val" style="color:var(--accent3)">${remainLeave}</div>
+            <div class="stat-num-label">잔여 연차</div>
+          </div>
+        </div>
+      </div>`;
+  });
+}
+
+function renderHistory() {
+  const filter = document.getElementById('historyFilter').value;
+  const tbody = document.getElementById('historyTable');
+  const filtered = leaves.filter(l => !filter || l.employee===filter);
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:40px">신청 내역이 없습니다</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(l => `
+    <tr>
+      <td><strong>${l.employee}</strong></td>
+      <td>${l.type}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${l.startDate} ~ ${l.endDate}</td>
+      <td><strong>${l.days}일</strong></td>
+      <td style="color:var(--text2)">${l.reason}</td>
+      <td><span class="badge badge-${l.status}">${l.status==='approved'?'승인':l.status==='rejected'?'반려':'대기중'}</span></td>
+      <td style="color:var(--text3);font-size:12px">${l.appliedAt}</td>
+    </tr>`).join('');
+}
+
+// ====== APPROVALS ======
+function renderApprovals() {
+  const grid = document.getElementById('approvalGrid');
+  if (leaves.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>연차 신청 내역이 없습니다</p></div>`;
+    return;
+  }
+  const sorted = [...leaves].sort((a,b) => ({pending:0,approved:1,rejected:2}[a.status] - {pending:0,approved:1,rejected:2}[b.status]));
+  grid.innerHTML = sorted.map(l => {
+    const emp = EMP_MAP[l.employee];
+    const isPending = l.status==='pending';
+    const statusLabel = l.status==='approved'
+      ? `<span style="color:var(--approved);font-size:13px;font-weight:700">✅ 승인완료</span>`
+      : l.status==='rejected'
+      ? `<span style="color:var(--rejected);font-size:13px;font-weight:700">❌ 반려</span>` : '';
+    const actions = isPending
+      ? `<button class="btn-approve" onclick="openModal('approve',${l.id})">✓ 승인</button><button class="btn-reject" onclick="openModal('reject',${l.id})">✗ 반려</button>`
+      : `<div class="btn-locked">🔒 처리완료</div>`;
+    return `<div class="approval-card ${l.status}">
+      <div class="approval-avatar" style="background:${emp.color}">${l.employee[0]}</div>
+      <div class="approval-info">
+        <div class="approval-name">${l.employee} · <span style="font-weight:400;font-size:13px">${l.type}</span></div>
+        <div class="approval-detail">${l.days}일 · ${l.reason}</div>
+        <div class="approval-dates">${l.startDate} ~ ${l.endDate}</div>
+      </div>
+      ${statusLabel}
+      <div class="approval-actions">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+// ====== MODAL ======
+function openModal(action, leaveId) {
+  const leave = leaves.find(l => l.id===leaveId);
+  pendingAction = { action, leaveId };
+  const confirmBtn = document.getElementById('modalConfirmBtn');
+  if (action==='approve') {
+    document.getElementById('modalTitle').textContent = '연차 승인';
+    document.getElementById('modalDesc').textContent = `${leave.employee}님의 ${leave.type} 신청을 승인하시겠습니까?\n기간: ${leave.startDate} ~ ${leave.endDate} (${leave.days}일)\n\n승인 후에는 수정이 불가합니다.`;
+    confirmBtn.textContent = '승인하기'; confirmBtn.className = 'modal-btn modal-btn-confirm';
+  } else {
+    document.getElementById('modalTitle').textContent = '연차 반려';
+    document.getElementById('modalDesc').textContent = `${leave.employee}님의 ${leave.type} 신청을 반려하시겠습니까?\n\n반려 후에는 수정이 불가합니다.`;
+    confirmBtn.textContent = '반려하기'; confirmBtn.className = 'modal-btn modal-btn-reject-confirm';
+  }
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); pendingAction = null; }
+function modalConfirm() {
+  if (!pendingAction) return;
+  const { action, leaveId } = pendingAction;
+  const leave = leaves.find(l => l.id===leaveId);
+  leave.status = action==='approve' ? 'approved' : 'rejected';
+  closeModal();
+  showToast(`${leave.employee}님의 ${leave.type}이 ${action==='approve'?'승인':'반려'}되었습니다.`, action==='approve'?'success':'error');
+  renderApprovals(); renderStats(); renderHistory(); renderCalendar();
+}
+document.getElementById('modalOverlay').onclick = function(e) { if(e.target===this) closeModal(); };
+document.getElementById('loginOverlay').onclick = function(e) { if(e.target===this) closeLoginModal(); };
+
+// ====== TOAST ======
+function showToast(msg, type='success') {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = type==='success' ? '✅' : '❌';
+  document.getElementById('toastMsg').textContent = msg;
+  toast.className = `toast ${type} show`;
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+init();
+</script>
+</body>
+</html>
