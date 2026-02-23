@@ -9,6 +9,8 @@
 <!-- Firebase CDN (compat 버전 - GitHub Pages 호환) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- SheetJS 엑셀 라이브러리 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
   :root {
@@ -182,6 +184,9 @@
   .modal-btn-confirm { background: var(--accent); color: white; }
   .modal-btn-reject-confirm { background: var(--rejected); color: white; }
 
+  .excel-btn { display: flex; align-items: center; gap: 8px; background: #1d6f42; border: 1px solid #2a9d5c; color: #6af7b8; border-radius: 10px; padding: 10px 18px; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .excel-btn:hover { background: #2a9d5c; transform: translateY(-1px); }
+
   @media (max-width: 900px) {
     .apply-layout { grid-template-columns: 1fr; }
     .section { padding: 20px; }
@@ -290,6 +295,7 @@
       <div class="section-title">연차 현황</div>
       <div class="section-desc">직원별 연차 및 재량휴가 사용 현황을 확인하세요</div>
     </div>
+    <button class="excel-btn" onclick="downloadExcel()">📥 엑셀 다운로드</button>
   </div>
   <div class="stats-grid" id="statsGrid"></div>
   <div class="table-wrap">
@@ -742,6 +748,58 @@
 
   document.getElementById('modalOverlay').onclick = function(e) { if(e.target===this) closeModal(); };
   document.getElementById('loginOverlay').onclick = function(e) { if(e.target===this) closeLoginModal(); };
+
+  // ====== 엑셀 다운로드 ======
+  function downloadExcel() {
+    if (leaves.length === 0) { showToast('다운로드할 데이터가 없습니다.', 'error'); return; }
+
+    var wb = XLSX.utils.book_new();
+
+    // 시트1: 전체 내역
+    var allData = [['직원', '유형', '날짜', '일수', '사유', '상태', '신청일']];
+    leaves.forEach(function(l) {
+      allData.push([
+        l.employee, l.type, l.startDate, l.days,
+        l.reason,
+        l.status === 'approved' ? '승인' : l.status === 'rejected' ? '반려' : '대기중',
+        l.appliedAt
+      ]);
+    });
+    var wsAll = XLSX.utils.aoa_to_sheet(allData);
+    wsAll['!cols'] = [{wch:10},{wch:12},{wch:14},{wch:6},{wch:20},{wch:8},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, wsAll, '전체내역');
+
+    // 시트2~: 직원별 시트
+    EMPLOYEES.forEach(function(emp) {
+      var empLeaves = leaves.filter(function(l) { return l.employee === emp.name; });
+      if (empLeaves.length === 0) return;
+
+      var data = [['유형', '날짜', '일수', '사유', '상태', '신청일']];
+      empLeaves.forEach(function(l) {
+        data.push([
+          l.type, l.startDate, l.days, l.reason,
+          l.status === 'approved' ? '승인' : l.status === 'rejected' ? '반려' : '대기중',
+          l.appliedAt
+        ]);
+      });
+
+      // 합계 행
+      var usedLeave = getUsedLeave(emp.name);
+      var usedDisc = getUsedDiscretionary(emp.name);
+      data.push([]);
+      data.push(['', '총 연차', emp.total + '일', '재량휴가', emp.discretionary + '일', '']);
+      data.push(['', '사용 연차', usedLeave + '일', '잔여 연차', (emp.total - usedLeave) + '일', '']);
+      data.push(['', '사용 재량휴가', usedDisc + '일', '잔여 재량휴가', (emp.discretionary - usedDisc) + '일', '']);
+
+      var ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{wch:12},{wch:14},{wch:6},{wch:20},{wch:8},{wch:12}];
+      XLSX.utils.book_append_sheet(wb, ws, emp.name);
+    });
+
+    var year = new Date().getFullYear();
+    XLSX.writeFile(wb, year + '년_연차현황.xlsx');
+    showToast('엑셀 파일이 다운로드되었습니다!', 'success');
+  }
 
   // ====== 토스트 ======
   function showToast(msg, type) {
