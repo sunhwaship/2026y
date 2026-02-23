@@ -787,56 +787,112 @@
       ws[addr] = {v:v, t:'s', s:s};
     }
 
-    // ── 제목 ──
-    sc('B3', '휴  가  계', cs(true,22,'center','center',false,tk,tk,tk,tk));
+    // 외곽선 헬퍼 (원본 양식 구조 그대로)
+    // 전체 외곽: 좌(B열)=medium, 우(J열)=medium, 상(3행top)=medium, 하(17행bot)=medium
+    // 내부: thin
 
-    // ── 결재란 ──
-    sc('H5', '결\n재',    cs(true,10,'center','center',true,tn,tn,tn,tn));
-    sc('I5', '담  당',    cs(true,9,'center','center',false,tn,tn,tn,tn));
-    sc('J5', '대 표 이 사', cs(true,9,'center','center',false,tn,tn,tn,tk));
-    sc('I6', '',          cs(false,9,'center','center',false,tn,tn,tn,tn));
-    sc('I7', '',          cs(false,9,'center','center',false,tn,tn,tn,tn));
+    // ── 제목 (B3:J3) ──
+    // top=medium, bot=없음(결재란과 이어짐), left=medium(B만), right=medium(J만)
+    sc('B3', '휴  가  계', {font:{name:'맑은 고딕',sz:22,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tk,bottom:no,left:tk,right:no}});
+    for(var col=['C','D','E','F','G','H','I'],i=0;i<col.length;i++){
+      ws[col[i]+'3']={v:'',t:'s',s:{border:{top:tk,bottom:no,left:no,right:no}}};
+    }
+    ws['J3']={v:'',t:'s',s:{border:{top:tk,bottom:no,left:no,right:tk}}};
 
-    // ── 신청자 정보 ──
-    sc('B9', '성       명',   cs(true,9,'center','center',false,tn,tn,tk,tn));
-    sc('D9', leave.employee,  cs(false,10,'center','center',false,tn,tn,tn,tn));
-    sc('G9', '부       서',   cs(true,9,'center','center',false,tn,tn,tn,tn));
-    sc('J9', '',              cs(false,10,'center','center',false,tn,tn,tn,tk));
+    // 4행 외곽만
+    ws['B4']={v:'',t:'s',s:{border:{left:tk}}};
+    ws['J4']={v:'',t:'s',s:{border:{right:tk}}};
 
-    sc('B10', '연차 잔여일수', cs(true,9,'center','center',false,tn,tn,tk,tn));
-    sc('D10', remaining+'일', cs(false,10,'center','center',false,tn,tn,tn,tn));
-    sc('G10', '신  청  일',   cs(true,9,'center','center',false,tn,tn,tn,tn));
-    sc('J10', leave.appliedAt, cs(false,9,'center','center',false,tn,tn,tn,tk));
+    // 5행 외곽
+    ws['B5']={v:'',t:'s',s:{border:{left:tk}}};
 
-    // ── 휴가 구분 (체크 표시 포함) ──
+    // ── 결재란 (H5:J7) ──
+    sc('H5', '결\n재',       {font:{name:'맑은 고딕',sz:10,bold:true}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    sc('I5', '담  당',       {font:{name:'맑은 고딕',sz:9,bold:true},  alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    sc('J5', '대 표 이 사',  {font:{name:'맑은 고딕',sz:9,bold:true},  alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tk}});
+    ws['B6']={v:'',t:'s',s:{border:{left:tk}}};
+    sc('I6', '', {border:{top:tn,bottom:tn,left:tn,right:tn}});
+    sc('J6', '', {border:{top:tn,bottom:tn,left:tn,right:tk}});
+    ws['B7']={v:'',t:'s',s:{border:{left:tk}}};
+    sc('I7', '', {border:{top:no,bottom:tn,left:tn,right:tn}});
+    sc('J7', '', {border:{top:no,bottom:tn,left:tn,right:tk}});
+
+    // 8행 외곽
+    ws['B8']={v:'',t:'s',s:{border:{left:tk}}};
+    ws['J8']={v:'',t:'s',s:{border:{right:tk}}};
+
+    // ── 신청자 정보 (9~10행) ──
+    sc('B9', '성       명',  {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
+    ws['C9']={v:'',t:'s',s:{border:{top:tn,bottom:tn,left:no,right:tn}}};
+    sc('D9', leave.employee, {font:{name:'맑은 고딕',sz:10},           alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ws['E9']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
+    ws['F9']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('G9', '부       서',  {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ws['H9']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
+    ws['I9']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('J9', '', {border:{top:tn,bottom:tn,left:tn,right:tk}});
+
+    sc('B10', '연차 잔여일수', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
+    ws['C10']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('D10', remaining+'일', {font:{name:'맑은 고딕',sz:10},           alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ws['E10']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
+    ws['F10']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('G10', '신  청  일',   {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ws['H10']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
+    ws['I10']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('J10', leave.appliedAt, {font:{name:'맑은 고딕',sz:9},           alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tk}});
+
+    // ── 휴가 구분 (11행) ──
     var types = ['연차','반차(오전)','반차(오후)','재량휴가','공가'];
     var typeStr = types.map(function(t){ return (t===leave.type?'☑':'□')+' '+t; });
     var line1 = typeStr.slice(0,3).join('     ');
     var line2 = typeStr.slice(3).join('     ');
-    sc('B11', '휴 가  구 분', cs(true,9,'center','center',false,tn,tn,tk,tn));
-    sc('D11', line1+'\n'+line2, cs(false,9,'left','center',true,tn,tn,tn,tn));
+    sc('B11', '휴 가  구 분', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
+    ws['C11']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('D11', line1+'\n'+line2, {font:{name:'맑은 고딕',sz:9},          alignment:{horizontal:'left',vertical:'center',wrapText:true}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ['E11','F11','G11','H11','I11'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};});
+    sc('J11', '', {border:{top:tn,bottom:tn,left:no,right:tk}});
 
-    // ── 휴가 기간 ──
-    sc('B12', '휴 가  기 간', cs(true,9,'center','center',false,tn,tn,tk,tn));
-    sc('D12', leave.startDate, cs(false,10,'center','center',false,tn,tn,tn,tn));
-    sc('I12', '일  수',       cs(true,9,'center','center',false,tn,tn,tn,tn));
-    sc('J12', leave.days+'일', cs(false,10,'center','center',false,tn,tn,tn,tk));
+    // ── 휴가 기간 (12행) ──
+    sc('B12', '휴 가  기 간', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
+    ws['C12']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('D12', leave.startDate, {font:{name:'맑은 고딕',sz:10},          alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ['E12','F12','G12'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};});
+    sc('H12', '', {border:{top:tn,bottom:tn,right:tn}});
+    sc('I12', '일  수',        {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    sc('J12', leave.days+'일', {font:{name:'맑은 고딕',sz:10},          alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tk}});
 
-    // ── 사유 ──
-    sc('B13', '휴 가  사 유', cs(true,9,'center','center',false,tn,tn,tk,tn));
-    sc('D13', leave.reason,   cs(false,10,'left','center',true,tn,tn,tn,tn));
+    // ── 사유 (13행) ──
+    sc('B13', '휴 가  사 유', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
+    ws['C13']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
+    sc('D13', leave.reason,   {font:{name:'맑은 고딕',sz:10},           alignment:{horizontal:'left',vertical:'center',wrapText:true}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ['E13','F13','G13','H13','I13'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};});
+    sc('J13', '', {border:{top:tn,bottom:tn,right:tk}});
 
-    // ── 하단 문구 ──
+    // 14행 외곽
+    ws['B14']={v:'',t:'s',s:{border:{left:tk}}};
+    ws['J14']={v:'',t:'s',s:{border:{right:tk}}};
+
+    // ── 하단 문구 (15행) ──
     sc('B15', '위와 같이 휴가를 신청하오니 허락하여 주시기 바랍니다.',
-       cs(false,10,'center','center',false,no,no,tk,tk));
+      {font:{name:'맑은 고딕',sz:10}, alignment:{horizontal:'center',vertical:'center'}, border:{left:tk,right:tk}});
+    ['C15','D15','E15','F15','G15','H15','I15'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{}}};});
+    ws['J15']={v:'',t:'s',s:{border:{right:tk}}};
 
-    // ── 신청인 서명 ──
-    sc('B16', '',           cs(false,9,'center','center',false,no,no,tk,no));
-    sc('F16', '신  청  인', cs(true,9,'center','center',false,tn,tn,tn,tn));
-    sc('I16', '(서  명)',   cs(false,9,'center','center',false,tn,tn,tn,tn));
+    // ── 신청인 서명 (16행) ──
+    sc('B16', '', {border:{left:tk}});
+    ['C16','D16'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{}}};});
+    sc('F16', '신  청  인', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    ws['G16']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
+    sc('H16', '', {border:{top:tn,bottom:tn,right:tn}});
+    sc('I16', leave.employee+'  (서명)', {font:{name:'맑은 고딕',sz:9}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
+    sc('J16', '', {border:{top:tn,bottom:tn,right:tk}});
 
-    // ── 회사명 ──
-    sc('H17', '(주) 선화', cs(false,8,'right','center',false,no,tk,no,tk));
+    // ── 회사명 + 하단 외곽 (17행) ──
+    ['B17','C17','D17','E17','F17','G17'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{bottom:tk}}};});
+    sc('H17', '(주) 선화', {font:{name:'맑은 고딕',sz:8}, alignment:{horizontal:'right',vertical:'center'}, border:{bottom:tk,right:tk}});
+    ws['I17']={v:'',t:'s',s:{border:{bottom:tk}}};
+    sc('J17', '', {border:{bottom:tk,right:tk}});
 
     // 병합 셀
     ws['!merges'] = [
