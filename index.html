@@ -788,22 +788,23 @@
 
   function renderSignGrid() {
     var grid = document.getElementById('signGrid');
+    if (!grid) return;
     grid.innerHTML = '';
     SIGN_KEYS.forEach(function(item) {
       var img = signImages[item.key];
       var previewHtml = img
-        ? '<img src="'+img+'" />'
+        ? '<img src="' + img + '" />'
         : '<span class="sign-preview-empty">미등록</span>';
       var deleteBtn = img
-        ? '<button class="sign-delete-btn" onclick="deleteSign(''+item.key+'')">🗑️ 삭제</button>'
+        ? '<button class="sign-delete-btn" onclick="deleteSign(\'' + item.key + '\')">🗑️ 삭제</button>'
         : '';
-      grid.innerHTML += '<div class="sign-card">'+
-        '<div class="sign-card-label">'+item.label+'</div>'+
-        '<div class="sign-preview" id="prev_'+item.key+'">'+previewHtml+'</div>'+
-        '<label class="sign-upload-btn">📁 이미지 등록'+
-          '<input type="file" accept="image/*" style="display:none" onchange="uploadSign(event,''+item.key+'')" />'+
-        '</label>'+
-        '<span id="del_'+item.key+'">'+deleteBtn+'</span>'+
+      grid.innerHTML += '<div class="sign-card">' +
+        '<div class="sign-card-label">' + item.label + '</div>' +
+        '<div class="sign-preview" id="prev_' + item.key + '">' + previewHtml + '</div>' +
+        '<label class="sign-upload-btn">📁 이미지 등록' +
+          '<input type="file" accept="image/*" style="display:none" onchange="uploadSign(event,\'' + item.key + '\')" />' +
+        '</label>' +
+        '<span id="del_' + item.key + '">' + deleteBtn + '</span>' +
       '</div>';
     });
   }
