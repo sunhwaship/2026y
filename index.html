@@ -187,6 +187,17 @@
   .excel-btn { display: flex; align-items: center; gap: 8px; background: #1d6f42; border: 1px solid #2a9d5c; color: #6af7b8; border-radius: 10px; padding: 10px 18px; font-family: 'Noto Sans KR', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
   .excel-btn:hover { background: #2a9d5c; transform: translateY(-1px); }
 
+  .sign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 16px; }
+  .sign-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .sign-card-label { font-size: 13px; font-weight: 700; color: var(--text); }
+  .sign-preview { width: 120px; height: 60px; border: 1px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--surface2); overflow: hidden; }
+  .sign-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .sign-preview-empty { font-size: 11px; color: var(--text3); }
+  .sign-upload-btn { padding: 6px 14px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); border-radius: 8px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .sign-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .sign-delete-btn { background: none; border: none; color: var(--text3); font-size: 11px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; padding: 2px 6px; }
+  .sign-delete-btn:hover { color: var(--accent2); }
+
   @media (max-width: 900px) {
     .apply-layout { grid-template-columns: 1fr; }
     .section { padding: 20px; }
@@ -323,6 +334,17 @@
     </div>
   </div>
   <div class="approval-grid" id="approvalGrid"></div>
+
+  <!-- 서명/도장 관리 -->
+  <div style="margin-top:40px">
+    <div class="section-header" style="margin-bottom:16px">
+      <div>
+        <div class="section-title" style="font-size:18px">✍️ 서명 / 도장 관리</div>
+        <div class="section-desc">휴가계에 자동으로 삽입될 서명과 도장 이미지를 등록하세요 (PNG/JPG 권장, 배경 투명하면 더 깔끔해요)</div>
+      </div>
+    </div>
+    <div class="sign-grid" id="signGrid"></div>
+  </div>
 </div>
 
 <!-- LOGIN MODAL -->
@@ -406,6 +428,7 @@
     });
 
     renderCalendar();
+    loadSignatures();
 
     // Firestore 실시간 연동
     db.collection('leaves').orderBy('appliedAt', 'desc').onSnapshot(function(snapshot) {
@@ -485,7 +508,7 @@
     document.querySelectorAll('.tab-btn').forEach(function(btn, i) { btn.classList.toggle('active', i === idx); });
     document.querySelectorAll('.section').forEach(function(sec, i) { sec.classList.toggle('active', i === idx); });
     if (idx === 1) { renderStats(); renderHistory(); }
-    if (idx === 2) renderApprovals();
+    if (idx === 2) { renderApprovals(); renderSignGrid(); }
   }
 
   // ====== 캘린더 ======
@@ -752,184 +775,296 @@
   document.getElementById('modalOverlay').onclick = function(e) { if(e.target===this) closeModal(); };
   document.getElementById('loginOverlay').onclick = function(e) { if(e.target===this) closeLoginModal(); };
 
+  // ====== 서명/도장 관리 ======
+  // 서명 키 목록: 직원 7명 + 담당자 도장 1개
+  var SIGN_KEYS = [
+    {key:'stamp_manager', label:'📌 담당자 도장 (결재란)'},
+  ];
+  EMPLOYEES.forEach(function(e){
+    SIGN_KEYS.push({key:'sign_'+e.name, label:'✍️ '+e.name+' 서명'});
+  });
+
+  var signImages = {}; // key → base64 dataURL
+
+  function renderSignGrid() {
+    var grid = document.getElementById('signGrid');
+    grid.innerHTML = '';
+    SIGN_KEYS.forEach(function(item) {
+      var img = signImages[item.key];
+      var previewHtml = img
+        ? '<img src="'+img+'" />'
+        : '<span class="sign-preview-empty">미등록</span>';
+      var deleteBtn = img
+        ? '<button class="sign-delete-btn" onclick="deleteSign(''+item.key+'')">🗑️ 삭제</button>'
+        : '';
+      grid.innerHTML += '<div class="sign-card">'+
+        '<div class="sign-card-label">'+item.label+'</div>'+
+        '<div class="sign-preview" id="prev_'+item.key+'">'+previewHtml+'</div>'+
+        '<label class="sign-upload-btn">📁 이미지 등록'+
+          '<input type="file" accept="image/*" style="display:none" onchange="uploadSign(event,''+item.key+'')" />'+
+        '</label>'+
+        '<span id="del_'+item.key+'">'+deleteBtn+'</span>'+
+      '</div>';
+    });
+  }
+
+  function uploadSign(event, key) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var dataUrl = e.target.result;
+      signImages[key] = dataUrl;
+      // Firebase에 저장
+      db.collection('signatures').doc(key).set({dataUrl: dataUrl})
+        .then(function(){ showToast('서명이 등록되었습니다!', 'success'); renderSignGrid(); })
+        .catch(function(){ showToast('저장 실패. 다시 시도해주세요.', 'error'); });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function deleteSign(key) {
+    db.collection('signatures').doc(key).delete()
+      .then(function(){
+        delete signImages[key];
+        showToast('삭제되었습니다.', 'success');
+        renderSignGrid();
+      });
+  }
+
+  function loadSignatures() {
+    db.collection('signatures').get().then(function(snapshot) {
+      snapshot.forEach(function(doc) {
+        signImages[doc.id] = doc.data().dataUrl;
+      });
+    });
+  }
+
   // ====== 휴가계 다운로드 ======
   function makeVacationSheet(wb, leave) {
     var emp = EMP_MAP[leave.employee];
     var usedLeave = getUsedLeave(leave.employee);
     var remaining = emp.total - usedLeave;
 
-    // 양식 구조 (올려주신 양식 그대로)
-    // 열: A(2), B(8.25), C(10.625), D(4.5), E, F, G(5.75), H(4), I(10.625), J, K(2)
     var ws = {};
-    var cols = [
-      {wch:2},{wch:8.25},{wch:10.625},{wch:4.5},{wch:7},{wch:7},
-      {wch:5.75},{wch:4},{wch:10.625},{wch:7},{wch:2}
-    ];
-
-    // 행 높이
-    var rowH = [8.1,8.1,50.1,15,17.25,30,30,24.95,24.95,24.95,45.75,24.95,24.95,24.95,42.75,27,30.75];
-
-    // 테두리 스타일 헬퍼
     var tk = {style:'medium'}, tn = {style:'thin'}, no = {};
-    function bd(t,b,l,r){ return {top:t||no,bottom:b||no,left:l||no,right:r||no}; }
 
-    // 셀 스타일 헬퍼
-    function cs(bold, sz, hz, vt, wrap, top, bot, lft, rgt) {
-      return {
-        font: {name:'맑은 고딕', sz: sz||10, bold:!!bold},
-        alignment: {horizontal:hz||'center', vertical:vt||'center', wrapText:!!wrap},
-        border: bd(top,bot,lft,rgt)
-      };
-    }
+    function sc(addr, v, s) { ws[addr] = {v:v, t:'s', s:s}; }
+    function bdr(t,b,l,r){ return {top:t||no,bottom:b||no,left:l||no,right:r||no}; }
+    function ft(bold,sz){ return {name:'맑은 고딕',sz:sz||10,bold:!!bold}; }
+    function al(hz,vt,wrap){ return {horizontal:hz||'center',vertical:vt||'center',wrapText:!!wrap}; }
 
-    // 셀 세팅
-    function sc(addr, v, s) {
-      ws[addr] = {v:v, t:'s', s:s};
-    }
+    // ── 제목 B3:K3 ──
+    sc('B3','휴  가  계',{font:ft(true,22),alignment:al(),border:bdr(tk,no,tk,no)});
+    ['C3','D3','E3','F3','G3','H3','I3'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(tk,no,no,no)}};});
+    ws['J3']={v:'',t:'s',s:{border:bdr(tk,no,no,no)}};
+    ws['K3']={v:'',t:'s',s:{border:bdr(tk,no,no,tk)}};
 
-    // 외곽선 헬퍼 (원본 양식 구조 그대로)
-    // 전체 외곽: 좌(B열)=medium, 우(J열)=medium, 상(3행top)=medium, 하(17행bot)=medium
-    // 내부: thin
+    // 4행
+    sc('B4','',{border:bdr(no,tn,tk,no)});
+    ['C4','D4','E4','F4','G4','H4','I4'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(no,tn,no,no)}};});
+    ws['J4']={v:'',t:'s',s:{border:bdr(no,tn,no,tk)}};
+    ws['K4']={v:'',t:'s',s:{border:bdr(no,tn,no,tk)}};
 
-    // ── 제목 (B3:J3) ──
-    // top=medium, bot=없음(결재란과 이어짐), left=medium(B만), right=medium(J만)
-    sc('B3', '휴  가  계', {font:{name:'맑은 고딕',sz:22,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tk,bottom:no,left:tk,right:no}});
-    for(var col=['C','D','E','F','G','H','I'],i=0;i<col.length;i++){
-      ws[col[i]+'3']={v:'',t:'s',s:{border:{top:tk,bottom:no,left:no,right:no}}};
-    }
-    ws['J3']={v:'',t:'s',s:{border:{top:tk,bottom:no,left:no,right:tk}}};
+    // 5~7행 결재란
+    ws['B5']={v:'',t:'s',s:{border:bdr(no,no,tk,no)}};
+    sc('J5','결\n재',{font:ft(true,10),alignment:al('center','center',true),border:bdr(tn,tn,tn,tn)});
+    sc('K5','담  당',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tn,tk)});
+    ws['B6']={v:'',t:'s',s:{border:bdr(no,no,tk,no)}};
+    ws['J6']={v:'',t:'s',s:{border:bdr(no,no,tn,tn)}};
+    ws['K6']={v:'',t:'s',s:{border:bdr(tn,tn,tn,tk)}};
+    ws['B7']={v:'',t:'s',s:{border:bdr(no,no,tk,no)}};
+    ws['J7']={v:'',t:'s',s:{border:bdr(no,tn,tn,tn)}};
+    ws['K7']={v:'',t:'s',s:{border:bdr(no,tn,tn,tk)}};
 
-    // 4행 외곽만
-    ws['B4']={v:'',t:'s',s:{border:{left:tk}}};
-    ws['J4']={v:'',t:'s',s:{border:{right:tk}}};
+    // 8행
+    sc('B8','',{border:bdr(no,tn,tk,no)});
+    ['C8','D8','E8','F8','G8','H8','I8'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(no,tn,no,no)}};});
+    ws['J8']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
+    ws['K8']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
 
-    // 5행 외곽
-    ws['B5']={v:'',t:'s',s:{border:{left:tk}}};
+    // 9행 성명/부서
+    sc('B9','성       명',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tk,tn)});
+    ws['C9']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('D9',leave.employee,{font:ft(false,10),alignment:al(),border:bdr(tn,tn,tn,tn)});
+    ws['E9']={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};
+    ws['F9']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('G9','부       서',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tn,tn)});
+    ws['H9']={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};
+    ws['I9']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    ws['J9']={v:'',t:'s',s:{border:bdr(tn,tn,tn,no)}};
+    ws['K9']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
 
-    // ── 결재란 (H5:J7) ──
-    sc('H5', '결\n재',       {font:{name:'맑은 고딕',sz:10,bold:true}, alignment:{horizontal:'center',vertical:'center',wrapText:true}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    sc('I5', '담  당',       {font:{name:'맑은 고딕',sz:9,bold:true},  alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    sc('J5', '대 표 이 사',  {font:{name:'맑은 고딕',sz:9,bold:true},  alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tk}});
-    ws['B6']={v:'',t:'s',s:{border:{left:tk}}};
-    sc('I6', '', {border:{top:tn,bottom:tn,left:tn,right:tn}});
-    sc('J6', '', {border:{top:tn,bottom:tn,left:tn,right:tk}});
-    ws['B7']={v:'',t:'s',s:{border:{left:tk}}};
-    sc('I7', '', {border:{top:no,bottom:tn,left:tn,right:tn}});
-    sc('J7', '', {border:{top:no,bottom:tn,left:tn,right:tk}});
+    // 10행 잔여일/신청일
+    sc('B10','연차 잔여일수',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tk,tn)});
+    ws['C10']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('D10',remaining+'일',{font:ft(false,10),alignment:al(),border:bdr(tn,tn,tn,tn)});
+    ws['E10']={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};
+    ws['F10']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('G10','신  청  일',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tn,tn)});
+    ws['H10']={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};
+    ws['I10']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    ws['J10']={v:'',t:'s',s:{border:bdr(tn,tn,tn,no)}};
+    ws['K10']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
+    sc('G10',leave.appliedAt,{font:ft(false,9),alignment:al(),border:bdr(tn,tn,tn,tn)});
 
-    // 8행 외곽
-    ws['B8']={v:'',t:'s',s:{border:{left:tk}}};
-    ws['J8']={v:'',t:'s',s:{border:{right:tk}}};
+    // 11행 구분
+    var types=['연차','반차(오전)','반차(오후)','재량휴가','공가'];
+    var tStr=types.map(function(t){return (t===leave.type?'☑':'□')+' '+t;});
+    sc('B11','휴 가  구 분',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tk,tn)});
+    ws['C11']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('D11',tStr.slice(0,3).join('     ')+'\n'+tStr.slice(3).join('     '),
+      {font:ft(false,9),alignment:al('left','center',true),border:bdr(tn,tn,tn,tn)});
+    ['E11','F11','G11','H11','I11','J11'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};});
+    ws['K11']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
 
-    // ── 신청자 정보 (9~10행) ──
-    sc('B9', '성       명',  {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
-    ws['C9']={v:'',t:'s',s:{border:{top:tn,bottom:tn,left:no,right:tn}}};
-    sc('D9', leave.employee, {font:{name:'맑은 고딕',sz:10},           alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ws['E9']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
-    ws['F9']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('G9', '부       서',  {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ws['H9']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
-    ws['I9']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('J9', '', {border:{top:tn,bottom:tn,left:tn,right:tk}});
+    // 12행 기간
+    sc('B12','휴 가  기 간',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tk,tn)});
+    ws['C12']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('D12',leave.startDate,{font:ft(false,10),alignment:al(),border:bdr(tn,tn,tn,tn)});
+    ['E12','F12','G12','H12'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};});
+    ws['H12']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('I12','일  수',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tn,tn)});
+    ws['J12']={v:'',t:'s',s:{border:bdr(tn,tn,tn,no)}};
+    ws['K12']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
+    sc('J12',leave.days+'일',{font:ft(false,10),alignment:al(),border:bdr(tn,tn,tn,no)});
 
-    sc('B10', '연차 잔여일수', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
-    ws['C10']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('D10', remaining+'일', {font:{name:'맑은 고딕',sz:10},           alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ws['E10']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
-    ws['F10']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('G10', '신  청  일',   {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ws['H10']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
-    ws['I10']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('J10', leave.appliedAt, {font:{name:'맑은 고딕',sz:9},           alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tk}});
+    // 13행 사유
+    sc('B13','휴 가  사 유',{font:ft(true,9),alignment:al(),border:bdr(tn,tn,tk,tn)});
+    ws['C13']={v:'',t:'s',s:{border:bdr(tn,tn,no,tn)}};
+    sc('D13',leave.reason,{font:ft(false,10),alignment:al('left','center',true),border:bdr(tn,tn,tn,tn)});
+    ['E13','F13','G13','H13','I13','J13'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(tn,tn,no,no)}};});
+    ws['K13']={v:'',t:'s',s:{border:bdr(tn,tn,no,tk)}};
 
-    // ── 휴가 구분 (11행) ──
-    var types = ['연차','반차(오전)','반차(오후)','재량휴가','공가'];
-    var typeStr = types.map(function(t){ return (t===leave.type?'☑':'□')+' '+t; });
-    var line1 = typeStr.slice(0,3).join('     ');
-    var line2 = typeStr.slice(3).join('     ');
-    sc('B11', '휴 가  구 분', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
-    ws['C11']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('D11', line1+'\n'+line2, {font:{name:'맑은 고딕',sz:9},          alignment:{horizontal:'left',vertical:'center',wrapText:true}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ['E11','F11','G11','H11','I11'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};});
-    sc('J11', '', {border:{top:tn,bottom:tn,left:no,right:tk}});
+    // 14행
+    sc('B14','',{border:bdr(tn,no,tk,tk)});
+    ['C14','D14','E14','F14','G14','H14','I14','J14'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(tn,no,no,no)}};});
+    ws['K14']={v:'',t:'s',s:{border:bdr(tn,no,no,tk)}};
 
-    // ── 휴가 기간 (12행) ──
-    sc('B12', '휴 가  기 간', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
-    ws['C12']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('D12', leave.startDate, {font:{name:'맑은 고딕',sz:10},          alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ['E12','F12','G12'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};});
-    sc('H12', '', {border:{top:tn,bottom:tn,right:tn}});
-    sc('I12', '일  수',        {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    sc('J12', leave.days+'일', {font:{name:'맑은 고딕',sz:10},          alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tk}});
+    // 15행 하단문구
+    sc('B15','위와 같이 휴가를 신청하오니 허락하여 주시기 바랍니다.',
+      {font:ft(false,10),alignment:al(),border:bdr(no,no,tk,tk)});
+    ['C15','D15','E15','F15','G15','H15','I15','J15'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(no,no,no,no)}};});
+    ws['K15']={v:'',t:'s',s:{border:bdr(no,no,no,tk)}};
 
-    // ── 사유 (13행) ──
-    sc('B13', '휴 가  사 유', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tk,right:tn}});
-    ws['C13']={v:'',t:'s',s:{border:{top:tn,bottom:tn,right:tn}}};
-    sc('D13', leave.reason,   {font:{name:'맑은 고딕',sz:10},           alignment:{horizontal:'left',vertical:'center',wrapText:true}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ['E13','F13','G13','H13','I13'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};});
-    sc('J13', '', {border:{top:tn,bottom:tn,right:tk}});
+    // 16~18행 신청인/서명란
+    ws['B16']={v:'',t:'s',s:{border:bdr(no,no,tk,no)}};
+    ws['B17']={v:'',t:'s',s:{border:bdr(no,no,tk,no)}};
+    ws['B18']={v:'',t:'s',s:{border:bdr(no,no,tk,no)}};
+    // F16:G18 신청인 라벨
+    sc('F16','신청인',{font:ft(true,9),alignment:al('center','center'),border:bdr(no,no,no,no)});
+    ws['G16']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['F17']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['G17']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['F18']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['G18']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    // H16:J18 신청자 이름
+    sc('H16',leave.employee,{font:ft(false,10),alignment:al('center','center'),border:bdr(no,no,no,no)});
+    ws['I16']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['J16']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['H17']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['I17']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['J17']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['H18']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['I18']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    ws['J18']={v:'',t:'s',s:{border:bdr(no,no,no,no)}};
+    // K16:K18 서명 칸
+    ws['K16']={v:'',t:'s',s:{border:bdr(no,no,no,tk)}};
+    ws['K17']={v:'',t:'s',s:{border:bdr(no,no,no,tk)}};
+    ws['K18']={v:'',t:'s',s:{border:bdr(no,no,no,tk)}};
 
-    // 14행 외곽
-    ws['B14']={v:'',t:'s',s:{border:{left:tk}}};
-    ws['J14']={v:'',t:'s',s:{border:{right:tk}}};
+    // 19행 회사명
+    sc('B19','(주) 선화',{font:ft(false,10),alignment:al('left','center'),border:bdr(no,tk,tk,tk)});
+    ['C19','D19','E19','F19','G19','H19','I19','J19'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:bdr(no,tk,no,no)}};});
+    ws['K19']={v:'',t:'s',s:{border:bdr(no,tk,no,tk)}};
 
-    // ── 하단 문구 (15행) ──
-    sc('B15', '위와 같이 휴가를 신청하오니 허락하여 주시기 바랍니다.',
-      {font:{name:'맑은 고딕',sz:10}, alignment:{horizontal:'center',vertical:'center'}, border:{left:tk,right:tk}});
-    ['C15','D15','E15','F15','G15','H15','I15'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{}}};});
-    ws['J15']={v:'',t:'s',s:{border:{right:tk}}};
-
-    // ── 신청인 서명 (16행) ──
-    sc('B16', '', {border:{left:tk}});
-    ['C16','D16'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{}}};});
-    sc('F16', '신  청  인', {font:{name:'맑은 고딕',sz:9,bold:true}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    ws['G16']={v:'',t:'s',s:{border:{top:tn,bottom:tn}}};
-    sc('H16', '', {border:{top:tn,bottom:tn,right:tn}});
-    sc('I16', leave.employee+'  (서명)', {font:{name:'맑은 고딕',sz:9}, alignment:{horizontal:'center',vertical:'center'}, border:{top:tn,bottom:tn,left:tn,right:tn}});
-    sc('J16', '', {border:{top:tn,bottom:tn,right:tk}});
-
-    // ── 회사명 + 하단 외곽 (17행) ──
-    ['B17','C17','D17','E17','F17','G17'].forEach(function(a){ws[a]={v:'',t:'s',s:{border:{bottom:tk}}};});
-    sc('H17', '(주) 선화', {font:{name:'맑은 고딕',sz:8}, alignment:{horizontal:'right',vertical:'center'}, border:{bottom:tk,right:tk}});
-    ws['I17']={v:'',t:'s',s:{border:{bottom:tk}}};
-    sc('J17', '', {border:{bottom:tk,right:tk}});
-
-    // 병합 셀
+    // 병합 셀 (양식 그대로)
     ws['!merges'] = [
-      {s:{r:2,c:1},e:{r:2,c:9}},   // B3:J3 제목
-      {s:{r:4,c:7},e:{r:6,c:7}},   // H5:H7 결재
-      {s:{r:5,c:8},e:{r:6,c:8}},   // I6:I7
-      {s:{r:5,c:9},e:{r:6,c:9}},   // J6:J7
-      {s:{r:8,c:1},e:{r:8,c:2}},   // B9:C9 성명라벨
-      {s:{r:8,c:3},e:{r:8,c:5}},   // D9:F9 성명값
-      {s:{r:8,c:6},e:{r:8,c:8}},   // G9:I9 부서라벨
-      {s:{r:9,c:1},e:{r:9,c:2}},   // B10:C10
-      {s:{r:9,c:3},e:{r:9,c:5}},   // D10:F10
-      {s:{r:9,c:6},e:{r:9,c:8}},   // G10:I10
-      {s:{r:10,c:1},e:{r:10,c:2}}, // B11:C11
-      {s:{r:10,c:3},e:{r:10,c:9}}, // D11:J11
-      {s:{r:11,c:1},e:{r:11,c:2}}, // B12:C12
-      {s:{r:11,c:3},e:{r:11,c:7}}, // D12:H12
-      {s:{r:12,c:1},e:{r:12,c:2}}, // B13:C13
-      {s:{r:12,c:3},e:{r:12,c:9}}, // D13:J13
-      {s:{r:14,c:1},e:{r:14,c:9}}, // B15:J15
-      {s:{r:15,c:1},e:{r:15,c:3}}, // B16:D16
-      {s:{r:15,c:5},e:{r:15,c:7}}, // F16:H16
-      {s:{r:15,c:8},e:{r:15,c:9}}, // I16:J16
-      {s:{r:16,c:7},e:{r:16,c:9}}, // H17:J17
+      {s:{r:2,c:1},e:{r:2,c:10}},   // B3:K3 제목
+      {s:{r:3,c:1},e:{r:7,c:8}},    // B4:I8 결재란 공간
+      {s:{r:4,c:9},e:{r:6,c:9}},    // J5:J7 결재
+      {s:{r:3,c:9},e:{r:3,c:10}},   // J4:K4
+      {s:{r:5,c:10},e:{r:6,c:10}},  // K6:K7 담당자 서명
+      {s:{r:7,c:9},e:{r:7,c:10}},   // J8:K8
+      {s:{r:8,c:1},e:{r:8,c:2}},    // B9:C9
+      {s:{r:8,c:3},e:{r:8,c:5}},    // D9:F9
+      {s:{r:8,c:6},e:{r:8,c:8}},    // G9:I9
+      {s:{r:8,c:9},e:{r:8,c:10}},   // J9:K9
+      {s:{r:9,c:1},e:{r:9,c:2}},    // B10:C10
+      {s:{r:9,c:3},e:{r:9,c:5}},    // D10:F10
+      {s:{r:9,c:6},e:{r:9,c:8}},    // G10:I10
+      {s:{r:9,c:9},e:{r:9,c:10}},   // J10:K10
+      {s:{r:10,c:1},e:{r:10,c:2}},  // B11:C11
+      {s:{r:10,c:3},e:{r:10,c:10}}, // D11:K11
+      {s:{r:11,c:1},e:{r:11,c:2}},  // B12:C12
+      {s:{r:11,c:3},e:{r:11,c:7}},  // D12:H12
+      {s:{r:11,c:9},e:{r:11,c:10}}, // J12:K12
+      {s:{r:12,c:1},e:{r:12,c:2}},  // B13:C13
+      {s:{r:12,c:3},e:{r:12,c:10}}, // D13:K13
+      {s:{r:13,c:1},e:{r:13,c:10}}, // B14:K14
+      {s:{r:14,c:1},e:{r:14,c:10}}, // B15:K15
+      {s:{r:15,c:5},e:{r:17,c:6}},  // F16:G18 신청인라벨
+      {s:{r:15,c:7},e:{r:17,c:9}},  // H16:J18 이름
+      {s:{r:15,c:10},e:{r:17,c:10}},// K16:K18 서명
+      {s:{r:15,c:1},e:{r:17,c:4}},  // B16:E18
+      {s:{r:18,c:1},e:{r:18,c:10}}, // B19:K19
     ];
 
-    ws['!cols'] = cols;
-    ws['!rows'] = rowH.map(function(h){ return {hpt:h}; });
-    ws['!ref'] = 'A1:K17';
+    ws['!cols'] = [
+      {wch:2},{wch:8.25},{wch:11.625},{wch:4.5},{wch:5},{wch:5},
+      {wch:7.5},{wch:5.75},{wch:4},{wch:8.875},{wch:4.875},{wch:14.125}
+    ];
+    ws['!rows'] = [
+      {hpt:8.1},{hpt:8.1},{hpt:50.1},{hpt:15},{hpt:17.25},{hpt:30},
+      {hpt:30},{hpt:24.95},{hpt:24.95},{hpt:24.95},{hpt:45.75},{hpt:24.95},
+      {hpt:24.95},{hpt:24.95},{hpt:42.75},{hpt:20.25},{hpt:20.25},{hpt:20.25},{hpt:74.25}
+    ];
+    ws['!ref'] = 'A1:L19';
 
-    // 시트명: 직원명_날짜 (중복 방지)
-    var sheetName = leave.employee + '_' + leave.startDate;
-    if (sheetName.length > 31) sheetName = sheetName.substring(0, 31);
+    var sheetName = leave.employee+'_'+leave.startDate;
+    if(sheetName.length>31) sheetName=sheetName.substring(0,31);
+
+    // 서명/도장 이미지 삽입
+    if(!wb.Sheets) wb.Sheets={};
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    // 담당자 도장 (K6:K7 위치)
+    var stampKey = 'stamp_manager';
+    var signKey = 'sign_'+leave.employee;
+
+    if(signImages[stampKey] || signImages[signKey]) {
+      if(!wb['!images']) wb['!images'] = {};
+      if(!wb['!images'][sheetName]) wb['!images'][sheetName] = [];
+      var idx = wb.SheetNames.indexOf(sheetName);
+      if(!wb.Sheets[sheetName]['!images']) wb.Sheets[sheetName]['!images'] = [];
+
+      if(signImages[stampKey]) {
+        var b64s = signImages[stampKey].split(',')[1];
+        var ext = signImages[stampKey].split(';')[0].split('/')[1];
+        wb.Sheets[sheetName]['!images'].push({
+          name:'stamp.'+ext, data:b64s, opts:{base64:true},
+          position:{type:'twoCellAnchor',
+            attrs:{editAs:'oneCell'},
+            from:{col:10,row:5,colOff:0,rowOff:0},
+            to:{col:11,row:7,colOff:0,rowOff:0}}
+        });
+      }
+      if(signImages[signKey]) {
+        var b64e = signImages[signKey].split(',')[1];
+        var exte = signImages[signKey].split(';')[0].split('/')[1];
+        wb.Sheets[sheetName]['!images'].push({
+          name:'sign.'+exte, data:b64e, opts:{base64:true},
+          position:{type:'twoCellAnchor',
+            attrs:{editAs:'oneCell'},
+            from:{col:10,row:15,colOff:0,rowOff:0},
+            to:{col:11,row:18,colOff:0,rowOff:0}}
+        });
+      }
+    }
   }
 
   function downloadExcel() {
+    if (!isAdmin) { showToast('관리자만 다운로드할 수 있습니다.', 'error'); return; }
     var approved = leaves.filter(function(l){ return l.status === 'approved'; });
     if (approved.length === 0) { showToast('승인된 휴가 내역이 없습니다.', 'error'); return; }
 
@@ -937,8 +1072,8 @@
     approved.forEach(function(l){ makeVacationSheet(wb, l); });
 
     var year = new Date().getFullYear();
-    XLSX.writeFile(wb, year + '년_휴가계.xlsx');
-    showToast('휴가계 ' + approved.length + '건이 다운로드되었습니다!', 'success');
+    XLSX.writeFile(wb, year+'년_휴가계.xlsx');
+    showToast('휴가계 '+approved.length+'건이 다운로드되었습니다!', 'success');
   }
 
   // ====== 토스트 ======
