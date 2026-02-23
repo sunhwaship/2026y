@@ -295,7 +295,7 @@
       <div class="section-title">연차 현황</div>
       <div class="section-desc">직원별 연차 및 재량휴가 사용 현황을 확인하세요</div>
     </div>
-    <button class="excel-btn" onclick="downloadExcel()">📥 엑셀 다운로드</button>
+    <button class="excel-btn" id="excelBtn" onclick="downloadExcel()" style="display:none">📥 휴가계 다운로드</button>
   </div>
   <div class="stats-grid" id="statsGrid"></div>
   <div class="table-wrap">
@@ -459,8 +459,10 @@
   function updateAdminUI() {
     var statusEl = document.getElementById('adminStatus');
     var navTabs = document.getElementById('navTabs');
+    var excelBtn = document.getElementById('excelBtn');
     if (isAdmin) {
       statusEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><div class="admin-badge">🛡️ 관리자 모드</div><button class="admin-logout-btn" onclick="doLogout()">로그아웃</button></div>';
+      if (excelBtn) excelBtn.style.display = 'flex';
       if (!document.getElementById('adminTab')) {
         var btn = document.createElement('button');
         btn.className = 'tab-btn admin-tab'; btn.id = 'adminTab';
@@ -470,6 +472,7 @@
       }
     } else {
       statusEl.innerHTML = '<button class="admin-login-btn" onclick="openLoginModal()">🔐 관리자 로그인</button>';
+      if (excelBtn) excelBtn.style.display = 'none';
       var adminTab = document.getElementById('adminTab');
       if (adminTab) adminTab.remove();
     }
@@ -749,56 +752,137 @@
   document.getElementById('modalOverlay').onclick = function(e) { if(e.target===this) closeModal(); };
   document.getElementById('loginOverlay').onclick = function(e) { if(e.target===this) closeLoginModal(); };
 
-  // ====== 엑셀 다운로드 ======
+  // ====== 휴가계 다운로드 ======
+  function makeVacationSheet(wb, leave) {
+    var emp = EMP_MAP[leave.employee];
+    var usedLeave = getUsedLeave(leave.employee);
+    var remaining = emp.total - usedLeave;
+
+    // 양식 구조 (올려주신 양식 그대로)
+    // 열: A(2), B(8.25), C(10.625), D(4.5), E, F, G(5.75), H(4), I(10.625), J, K(2)
+    var ws = {};
+    var cols = [
+      {wch:2},{wch:8.25},{wch:10.625},{wch:4.5},{wch:7},{wch:7},
+      {wch:5.75},{wch:4},{wch:10.625},{wch:7},{wch:2}
+    ];
+
+    // 행 높이
+    var rowH = [8.1,8.1,50.1,15,17.25,30,30,24.95,24.95,24.95,45.75,24.95,24.95,24.95,42.75,27,30.75];
+
+    // 테두리 스타일 헬퍼
+    var tk = {style:'medium'}, tn = {style:'thin'}, no = {};
+    function bd(t,b,l,r){ return {top:t||no,bottom:b||no,left:l||no,right:r||no}; }
+
+    // 셀 스타일 헬퍼
+    function cs(bold, sz, hz, vt, wrap, top, bot, lft, rgt) {
+      return {
+        font: {name:'맑은 고딕', sz: sz||10, bold:!!bold},
+        alignment: {horizontal:hz||'center', vertical:vt||'center', wrapText:!!wrap},
+        border: bd(top,bot,lft,rgt)
+      };
+    }
+
+    // 셀 세팅
+    function sc(addr, v, s) {
+      ws[addr] = {v:v, t:'s', s:s};
+    }
+
+    // ── 제목 ──
+    sc('B3', '휴  가  계', cs(true,22,'center','center',false,tk,tk,tk,tk));
+
+    // ── 결재란 ──
+    sc('H5', '결\n재',    cs(true,10,'center','center',true,tn,tn,tn,tn));
+    sc('I5', '담  당',    cs(true,9,'center','center',false,tn,tn,tn,tn));
+    sc('J5', '대 표 이 사', cs(true,9,'center','center',false,tn,tn,tn,tk));
+    sc('I6', '',          cs(false,9,'center','center',false,tn,tn,tn,tn));
+    sc('I7', '',          cs(false,9,'center','center',false,tn,tn,tn,tn));
+
+    // ── 신청자 정보 ──
+    sc('B9', '성       명',   cs(true,9,'center','center',false,tn,tn,tk,tn));
+    sc('D9', leave.employee,  cs(false,10,'center','center',false,tn,tn,tn,tn));
+    sc('G9', '부       서',   cs(true,9,'center','center',false,tn,tn,tn,tn));
+    sc('J9', '',              cs(false,10,'center','center',false,tn,tn,tn,tk));
+
+    sc('B10', '연차 잔여일수', cs(true,9,'center','center',false,tn,tn,tk,tn));
+    sc('D10', remaining+'일', cs(false,10,'center','center',false,tn,tn,tn,tn));
+    sc('G10', '신  청  일',   cs(true,9,'center','center',false,tn,tn,tn,tn));
+    sc('J10', leave.appliedAt, cs(false,9,'center','center',false,tn,tn,tn,tk));
+
+    // ── 휴가 구분 (체크 표시 포함) ──
+    var types = ['연차','반차(오전)','반차(오후)','재량휴가','공가'];
+    var typeStr = types.map(function(t){ return (t===leave.type?'☑':'□')+' '+t; });
+    var line1 = typeStr.slice(0,3).join('     ');
+    var line2 = typeStr.slice(3).join('     ');
+    sc('B11', '휴 가  구 분', cs(true,9,'center','center',false,tn,tn,tk,tn));
+    sc('D11', line1+'\n'+line2, cs(false,9,'left','center',true,tn,tn,tn,tn));
+
+    // ── 휴가 기간 ──
+    sc('B12', '휴 가  기 간', cs(true,9,'center','center',false,tn,tn,tk,tn));
+    sc('D12', leave.startDate, cs(false,10,'center','center',false,tn,tn,tn,tn));
+    sc('I12', '일  수',       cs(true,9,'center','center',false,tn,tn,tn,tn));
+    sc('J12', leave.days+'일', cs(false,10,'center','center',false,tn,tn,tn,tk));
+
+    // ── 사유 ──
+    sc('B13', '휴 가  사 유', cs(true,9,'center','center',false,tn,tn,tk,tn));
+    sc('D13', leave.reason,   cs(false,10,'left','center',true,tn,tn,tn,tn));
+
+    // ── 하단 문구 ──
+    sc('B15', '위와 같이 휴가를 신청하오니 허락하여 주시기 바랍니다.',
+       cs(false,10,'center','center',false,no,no,tk,tk));
+
+    // ── 신청인 서명 ──
+    sc('B16', '',           cs(false,9,'center','center',false,no,no,tk,no));
+    sc('F16', '신  청  인', cs(true,9,'center','center',false,tn,tn,tn,tn));
+    sc('I16', '(서  명)',   cs(false,9,'center','center',false,tn,tn,tn,tn));
+
+    // ── 회사명 ──
+    sc('H17', '(주) 선화', cs(false,8,'right','center',false,no,tk,no,tk));
+
+    // 병합 셀
+    ws['!merges'] = [
+      {s:{r:2,c:1},e:{r:2,c:9}},   // B3:J3 제목
+      {s:{r:4,c:7},e:{r:6,c:7}},   // H5:H7 결재
+      {s:{r:5,c:8},e:{r:6,c:8}},   // I6:I7
+      {s:{r:5,c:9},e:{r:6,c:9}},   // J6:J7
+      {s:{r:8,c:1},e:{r:8,c:2}},   // B9:C9 성명라벨
+      {s:{r:8,c:3},e:{r:8,c:5}},   // D9:F9 성명값
+      {s:{r:8,c:6},e:{r:8,c:8}},   // G9:I9 부서라벨
+      {s:{r:9,c:1},e:{r:9,c:2}},   // B10:C10
+      {s:{r:9,c:3},e:{r:9,c:5}},   // D10:F10
+      {s:{r:9,c:6},e:{r:9,c:8}},   // G10:I10
+      {s:{r:10,c:1},e:{r:10,c:2}}, // B11:C11
+      {s:{r:10,c:3},e:{r:10,c:9}}, // D11:J11
+      {s:{r:11,c:1},e:{r:11,c:2}}, // B12:C12
+      {s:{r:11,c:3},e:{r:11,c:7}}, // D12:H12
+      {s:{r:12,c:1},e:{r:12,c:2}}, // B13:C13
+      {s:{r:12,c:3},e:{r:12,c:9}}, // D13:J13
+      {s:{r:14,c:1},e:{r:14,c:9}}, // B15:J15
+      {s:{r:15,c:1},e:{r:15,c:3}}, // B16:D16
+      {s:{r:15,c:5},e:{r:15,c:7}}, // F16:H16
+      {s:{r:15,c:8},e:{r:15,c:9}}, // I16:J16
+      {s:{r:16,c:7},e:{r:16,c:9}}, // H17:J17
+    ];
+
+    ws['!cols'] = cols;
+    ws['!rows'] = rowH.map(function(h){ return {hpt:h}; });
+    ws['!ref'] = 'A1:K17';
+
+    // 시트명: 직원명_날짜 (중복 방지)
+    var sheetName = leave.employee + '_' + leave.startDate;
+    if (sheetName.length > 31) sheetName = sheetName.substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
   function downloadExcel() {
-    if (leaves.length === 0) { showToast('다운로드할 데이터가 없습니다.', 'error'); return; }
+    var approved = leaves.filter(function(l){ return l.status === 'approved'; });
+    if (approved.length === 0) { showToast('승인된 휴가 내역이 없습니다.', 'error'); return; }
 
     var wb = XLSX.utils.book_new();
-
-    // 시트1: 전체 내역
-    var allData = [['직원', '유형', '날짜', '일수', '사유', '상태', '신청일']];
-    leaves.forEach(function(l) {
-      allData.push([
-        l.employee, l.type, l.startDate, l.days,
-        l.reason,
-        l.status === 'approved' ? '승인' : l.status === 'rejected' ? '반려' : '대기중',
-        l.appliedAt
-      ]);
-    });
-    var wsAll = XLSX.utils.aoa_to_sheet(allData);
-    wsAll['!cols'] = [{wch:10},{wch:12},{wch:14},{wch:6},{wch:20},{wch:8},{wch:12}];
-    XLSX.utils.book_append_sheet(wb, wsAll, '전체내역');
-
-    // 시트2~: 직원별 시트
-    EMPLOYEES.forEach(function(emp) {
-      var empLeaves = leaves.filter(function(l) { return l.employee === emp.name; });
-      if (empLeaves.length === 0) return;
-
-      var data = [['유형', '날짜', '일수', '사유', '상태', '신청일']];
-      empLeaves.forEach(function(l) {
-        data.push([
-          l.type, l.startDate, l.days, l.reason,
-          l.status === 'approved' ? '승인' : l.status === 'rejected' ? '반려' : '대기중',
-          l.appliedAt
-        ]);
-      });
-
-      // 합계 행
-      var usedLeave = getUsedLeave(emp.name);
-      var usedDisc = getUsedDiscretionary(emp.name);
-      data.push([]);
-      data.push(['', '총 연차', emp.total + '일', '재량휴가', emp.discretionary + '일', '']);
-      data.push(['', '사용 연차', usedLeave + '일', '잔여 연차', (emp.total - usedLeave) + '일', '']);
-      data.push(['', '사용 재량휴가', usedDisc + '일', '잔여 재량휴가', (emp.discretionary - usedDisc) + '일', '']);
-
-      var ws = XLSX.utils.aoa_to_sheet(data);
-      ws['!cols'] = [{wch:12},{wch:14},{wch:6},{wch:20},{wch:8},{wch:12}];
-      XLSX.utils.book_append_sheet(wb, ws, emp.name);
-    });
+    approved.forEach(function(l){ makeVacationSheet(wb, l); });
 
     var year = new Date().getFullYear();
-    XLSX.writeFile(wb, year + '년_연차현황.xlsx');
-    showToast('엑셀 파일이 다운로드되었습니다!', 'success');
+    XLSX.writeFile(wb, year + '년_휴가계.xlsx');
+    showToast('휴가계 ' + approved.length + '건이 다운로드되었습니다!', 'success');
   }
 
   // ====== 토스트 ======
